@@ -1,0 +1,20 @@
+version: "3.9"
+services:
+  xtts:
+    build: .
+    image: local-xtts:latest
+    container_name: xtts
+    environment:
+      - MODEL_NAME=${MODEL_NAME:-tts_models/multilingual/multi-dataset/xtts_v2}
+      - TTS_PORT=${TTS_PORT:-5002}
+    volumes:
+      - ./cache:/root/.local/share/tts
+    networks:
+      - fortress-phronesis-net
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+
+networks:
+  fortress-phronesis-net:
+    external: true
