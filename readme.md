@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir TTS==0.22.0
 
 ENV MODEL_NAME=tts_models/multilingual/multi-dataset/xtts_v2
 ENV TTS_PORT=5002
+ENV COQUI_TOS_AGREED=1
 
 EXPOSE ${TTS_PORT}
 
@@ -37,6 +38,7 @@ services:
     environment:
       - MODEL_NAME=${MODEL_NAME:-tts_models/multilingual/multi-dataset/xtts_v2}
       - TTS_PORT=${TTS_PORT:-5002}
+      - COQUI_TOS_AGREED=${COQUI_TOS_AGREED:-1}
     volumes:
       - ./cache:/root/.local/share/tts
     networks:
@@ -51,6 +53,8 @@ networks:
 ```
 
 First boot downloads the model into `./cache`, so keep that directory around for subsequent runs.
+
+Set `COQUI_TOS_AGREED=1` only if you have already reviewed and accepted the Coqui XTTS licensing terms referenced in the runtime prompt.  The environment variable simply pre-seeds the agreement file that the downloader looks for so the container can bootstrap non-interactively.
 
 ### 2. Launch xTTS
 
