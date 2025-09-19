@@ -14,20 +14,33 @@ from TTS.utils.manage import ModelManager
 model_name = os.environ.get("MODEL_NAME")
 if not model_name:
     sys.exit("MODEL_NAME environment variable must be set")
+
 manager = ModelManager()
-model_path, config_path, _ = manager.download_model(model_name)
-if not config_path:
-    candidate = Path(model_path).with_name("config.json") if model_path else None
-    if candidate and candidate.is_file():
-        config_path = str(candidate)
-    else:
-        info = manager.model_info(model_name)
-        default = info.get("default_config_path") if info else None
-        if default and Path(default).is_file():
-            config_path = default
+model_path, config_path, *_ = manager.download_model(model_name)
+
+if not config_path and model_path:
+    model_path = Path(model_path)
+    search_order = [
+        model_path.with_suffix('.json'),
+        model_path.with_name('config.json'),
+        model_path.with_name('model_config.json'),
+        model_path.with_name('config.yaml'),
+        model_path.with_name('config.yml'),
+    ]
+    for candidate in search_order:
+        if candidate and candidate.is_file():
+            config_path = str(candidate)
+            break
+    if not config_path:
+        for ext in ('.json', '.yaml', '.yml'):
+            matches = sorted(model_path.parent.glob(f'*{ext}'))
+            if matches:
+                config_path = str(matches[0])
+                break
 
 if not config_path:
     sys.exit(f"Unable to locate config for model {model_name}. Upgrade the TTS package or specify --config_path manually.")
+
 print(config_path, end="")
 PY
 )
