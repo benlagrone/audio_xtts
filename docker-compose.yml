@@ -7,6 +7,7 @@ services:
     environment:
       - MODEL_NAME=${MODEL_NAME:-tts_models/multilingual/multi-dataset/xtts_v2}
       - TTS_PORT=${TTS_PORT:-5002}
+      - COQUI_TOS_AGREED=${COQUI_TOS_AGREED:-1}
     volumes:
       - ./cache:/root/.local/share/tts
     networks:
