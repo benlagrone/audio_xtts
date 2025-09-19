@@ -11,4 +11,4 @@ ENV TTS_PORT=5002
 
 EXPOSE ${TTS_PORT}
 
-CMD ["/bin/sh", "-c", "tts-server --model_name \"$MODEL_NAME\" --port $TTS_PORT --use_cuda 0 --host 0.0.0.0"]
+CMD ["/bin/sh", "-c", "tts-server --model_name \"$MODEL_NAME\" --port $TTS_PORT --use_cuda 0"]

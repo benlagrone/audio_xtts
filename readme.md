@@ -22,7 +22,7 @@ ENV TTS_PORT=5002
 
 EXPOSE ${TTS_PORT}
 
-CMD ["tts-server", "--model_name", "${MODEL_NAME}", "--port", "${TTS_PORT}", "--use_cuda", "0", "--host", "0.0.0.0"]
+CMD ["tts-server", "--model_name", "${MODEL_NAME}", "--port", "${TTS_PORT}", "--use_cuda", "0"]
 ```
 
 Create `docker-compose.yml`:
