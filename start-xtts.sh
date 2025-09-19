@@ -18,25 +18,50 @@ if not model_name:
 manager = ModelManager()
 model_path, config_path, *_ = manager.download_model(model_name)
 
-if not config_path and model_path:
+search_dirs = []
+if model_path:
     model_path = Path(model_path)
-    search_order = [
-        model_path.with_suffix('.json'),
-        model_path.with_name('config.json'),
-        model_path.with_name('model_config.json'),
-        model_path.with_name('config.yaml'),
-        model_path.with_name('config.yml'),
-    ]
-    for candidate in search_order:
-        if candidate and candidate.is_file():
-            config_path = str(candidate)
+    if model_path.is_file():
+        search_dirs.append(model_path.parent)
+    else:
+        search_dirs.append(model_path)
+
+output_path = getattr(manager, "output_path", None)
+if isinstance(output_path, (str, Path)):
+    output_dir = Path(output_path)
+    if output_dir.exists():
+        search_dirs.append(output_dir)
+
+if not config_path:
+    preferred_names = {
+        "config.json",
+        "model_config.json",
+        "config.yaml",
+        "config.yml",
+    }
+    candidates = []
+    for directory in search_dirs:
+        if not directory or not directory.exists():
+            continue
+        for item in directory.iterdir():
+            if item.name in preferred_names and item.is_file():
+                candidates.append(item)
+        if candidates:
             break
-    if not config_path:
-        for ext in ('.json', '.yaml', '.yml'):
-            matches = sorted(model_path.parent.glob(f'*{ext}'))
-            if matches:
-                config_path = str(matches[0])
+
+    if not candidates:
+        for directory in search_dirs:
+            if not directory or not directory.exists():
+                continue
+            for item in directory.rglob("config.*"):
+                if item.suffix.lower() in {".json", ".yaml", ".yml"} and item.is_file():
+                    candidates.append(item)
+                    break
+            if candidates:
                 break
+
+    if candidates:
+        config_path = str(candidates[0])
 
 if not config_path:
     sys.exit(f"Unable to locate config for model {model_name}. Upgrade the TTS package or specify --config_path manually.")
@@ -44,6 +69,8 @@ if not config_path:
 print(config_path, end="")
 PY
 )
+
+echo "Using model config: ${CONFIG_PATH}" >&2
 
 export COQUI_TOS_AGREED="${COQUI_TOS_AGREED:-0}"
 
