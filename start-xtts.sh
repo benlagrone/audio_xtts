@@ -8,6 +8,8 @@ USE_CUDA="${USE_CUDA:-0}"
 CONFIG_PATH=$(python - <<'PY'
 import os
 import sys
+import io
+import contextlib
 from pathlib import Path
 from TTS.utils.manage import ModelManager
 
@@ -16,7 +18,13 @@ if not model_name:
     sys.exit("MODEL_NAME environment variable must be set")
 
 manager = ModelManager()
-model_path, config_path, *_ = manager.download_model(model_name)
+with contextlib.redirect_stdout(io.StringIO()):
+    result = manager.download_model(model_name)
+
+if isinstance(result, (list, tuple)):
+    model_path, config_path, *_ = result + (None, None)
+else:
+    model_path, config_path = result, None
 
 search_dirs = []
 if model_path:
@@ -33,12 +41,12 @@ if isinstance(output_path, (str, Path)):
         search_dirs.append(output_dir)
 
 if not config_path:
-    preferred_names = {
+    preferred_names = (
         "config.json",
         "model_config.json",
         "config.yaml",
         "config.yml",
-    }
+    )
     candidates = []
     for directory in search_dirs:
         if not directory or not directory.exists():
