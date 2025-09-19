@@ -90,7 +90,7 @@ echo "Using model config: ${CONFIG_PATH}" >&2
 
 export COQUI_TOS_AGREED="${COQUI_TOS_AGREED:-0}"
 
-exec tts-server \
+exec python /usr/local/bin/xtts-entry.py \
   --model_path "${MODEL_PATH}" \
   --config_path "${CONFIG_PATH}" \
   --port "${TTS_PORT}" \

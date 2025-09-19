@@ -11,7 +11,8 @@ ENV TTS_PORT=5002
 ENV COQUI_TOS_AGREED=1
 
 COPY start-xtts.sh /usr/local/bin/start-xtts.sh
-RUN chmod +x /usr/local/bin/start-xtts.sh
+COPY xtts-entry.py /usr/local/bin/xtts-entry.py
+RUN chmod +x /usr/local/bin/start-xtts.sh /usr/local/bin/xtts-entry.py
 
 EXPOSE ${TTS_PORT}
 
