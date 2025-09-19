@@ -10,6 +10,9 @@ ENV MODEL_NAME=tts_models/multilingual/multi-dataset/xtts_v2
 ENV TTS_PORT=5002
 ENV COQUI_TOS_AGREED=1
 
+COPY start-xtts.sh /usr/local/bin/start-xtts.sh
+RUN chmod +x /usr/local/bin/start-xtts.sh
+
 EXPOSE ${TTS_PORT}
 
-CMD ["/bin/sh", "-c", "tts-server --model_name \"$MODEL_NAME\" --port $TTS_PORT --use_cuda 0"]
+ENTRYPOINT ["/usr/local/bin/start-xtts.sh"]
