@@ -5,7 +5,7 @@ MODEL_NAME="${MODEL_NAME:-tts_models/multilingual/multi-dataset/xtts_v2}"
 TTS_PORT="${TTS_PORT:-5002}"
 USE_CUDA="${USE_CUDA:-0}"
 
-CONFIG_PATH=$(python - <<'PY'
+EVAL_OUTPUT=$(python - <<'PY'
 import os
 import sys
 import io
@@ -22,17 +22,20 @@ with contextlib.redirect_stdout(io.StringIO()):
     result = manager.download_model(model_name)
 
 if isinstance(result, (list, tuple)):
-    model_path, config_path, *_ = result + (None, None)
+    parts = list(result) + [None, None]
+    model_path, config_path = parts[0], parts[1]
 else:
     model_path, config_path = result, None
 
+if not model_path:
+    sys.exit(f"Unable to download checkpoint for model {model_name}")
+
+model_path = Path(model_path)
 search_dirs = []
-if model_path:
-    model_path = Path(model_path)
-    if model_path.is_file():
-        search_dirs.append(model_path.parent)
-    else:
-        search_dirs.append(model_path)
+if model_path.is_file():
+    search_dirs.append(model_path.parent)
+else:
+    search_dirs.append(model_path)
 
 output_path = getattr(manager, "output_path", None)
 if isinstance(output_path, (str, Path)):
@@ -74,16 +77,21 @@ if not config_path:
 if not config_path:
     sys.exit(f"Unable to locate config for model {model_name}. Upgrade the TTS package or specify --config_path manually.")
 
-print(config_path, end="")
+print(f"MODEL_PATH={model_path}")
+print(f"CONFIG_PATH={config_path}")
 PY
 )
 
+# shellcheck disable=SC2086
+eval "$EVAL_OUTPUT"
+
+echo "Using model: ${MODEL_PATH}" >&2
 echo "Using model config: ${CONFIG_PATH}" >&2
 
 export COQUI_TOS_AGREED="${COQUI_TOS_AGREED:-0}"
 
 exec tts-server \
-  --model_name "${MODEL_NAME}" \
+  --model_path "${MODEL_PATH}" \
   --config_path "${CONFIG_PATH}" \
   --port "${TTS_PORT}" \
   --use_cuda "${USE_CUDA}"
