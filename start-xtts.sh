@@ -8,13 +8,24 @@ USE_CUDA="${USE_CUDA:-0}"
 CONFIG_PATH=$(python - <<'PY'
 import os
 import sys
+from pathlib import Path
 from TTS.utils.manage import ModelManager
 
 model_name = os.environ.get("MODEL_NAME")
 if not model_name:
     sys.exit("MODEL_NAME environment variable must be set")
 manager = ModelManager()
-_, config_path, _ = manager.download_model(model_name)
+model_path, config_path, _ = manager.download_model(model_name)
+if not config_path:
+    candidate = Path(model_path).with_name("config.json") if model_path else None
+    if candidate and candidate.is_file():
+        config_path = str(candidate)
+    else:
+        info = manager.model_info(model_name)
+        default = info.get("default_config_path") if info else None
+        if default and Path(default).is_file():
+            config_path = default
+
 if not config_path:
     sys.exit(f"Unable to locate config for model {model_name}. Upgrade the TTS package or specify --config_path manually.")
 print(config_path, end="")
