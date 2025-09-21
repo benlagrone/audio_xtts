@@ -11,6 +11,12 @@ from TTS.server import server as tts_server
 from flask import request, g
 
 _original_tts_handler = tts_server.app.view_functions.get("tts")
+_app_logger = getattr(tts_server.app, "logger", None)
+
+
+def _log_debug(message, data):
+    if _app_logger:
+        _app_logger.debug("%s %s", message, data)
 
 
 def _normalize_payload(payload):
@@ -36,9 +42,11 @@ def _normalize_payload(payload):
 
 def _normalized_tts_handler(*args, **kwargs):
     payload = request.get_json(silent=True)
+    if payload is None:
+        return _original_tts_handler(*args, **kwargs)
     normalized = _normalize_payload(payload)
     g.__tts_payload__ = normalized
-    tts_server.logger.info("[debug] normalized payload: %s", normalized)
+    _log_debug("[normalized payload]", normalized)
     return _original_tts_handler(*args, **kwargs)
 
 
