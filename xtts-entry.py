@@ -69,22 +69,38 @@ synthesizer = tts_server.synthesizer
 _original_synth_tts = synthesizer.tts
 
 
+def _coalesce_argument(args_list, kwargs, name, position, value):
+    if not value:
+        return
+    if kwargs.get(name):
+        return
+    if len(args_list) > position:
+        if args_list[position]:
+            return
+        args_list[position] = value
+    else:
+        kwargs[name] = value
+
+
 def _patched_synth_tts(*args, **kwargs):
-    payload = getattr(g, "__tts_payload__", {}) or {}
-    text_arg = kwargs.get("text")
-    if (text_arg is None or text_arg == "" or text_arg == []) and payload:
-        text = payload.get("text")
-        if text:
-            kwargs["text"] = text
-    if not kwargs.get("speaker_name") and payload:
-        speaker = payload.get("speaker") or payload.get("speaker_idx")
-        if speaker:
-            kwargs["speaker_name"] = speaker
-    if not kwargs.get("language_name") and payload:
-        language = payload.get("language") or payload.get("language_name")
-        if language:
-            kwargs["language_name"] = language
-    return _original_synth_tts(*args, **kwargs)
+    payload = getattr(g, "__tts_payload__", None) or {}
+    args_list = list(args)
+
+    text_override = payload.get("text")
+    if text_override:
+        if len(args_list) > 0:
+            if not args_list[0]:
+                args_list[0] = text_override
+        else:
+            args_list.append(text_override)
+
+    speaker_override = payload.get("speaker") or payload.get("speaker_idx")
+    _coalesce_argument(args_list, kwargs, "speaker_name", 1, speaker_override)
+
+    language_override = payload.get("language") or payload.get("language_name")
+    _coalesce_argument(args_list, kwargs, "language_name", 3, language_override)
+
+    return _original_synth_tts(*tuple(args_list), **kwargs)
 
 
 synthesizer.tts = _patched_synth_tts
