@@ -29,12 +29,14 @@ def _normalize_payload(payload):
     normalized = dict(payload)
     text = normalized.get("text")
     if isinstance(text, list):
-        normalized["text"] = [t for t in (s.strip() if isinstance(s, str) else s for s in text) if t]
-        if not normalized["text"]:
+        collapsed = [t for t in (s.strip() if isinstance(s, str) else s for s in text) if t]
+        if collapsed:
+            normalized["text"] = collapsed[0] if len(collapsed) == 1 else collapsed
+        else:
             normalized["text"] = None
     elif isinstance(text, str):
         stripped = text.strip()
-        normalized["text"] = [stripped] if stripped else None
+        normalized["text"] = stripped if stripped else None
     speaker_wav = normalized.get("speaker_wav")
     if isinstance(speaker_wav, str) and not speaker_wav.strip():
         normalized.pop("speaker_wav", None)
