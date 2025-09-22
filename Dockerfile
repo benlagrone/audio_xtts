@@ -1,10 +1,18 @@
 FROM python:3.11-slim
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 RUN apt-get update \
- && apt-get install -y --no-install-recommends build-essential ffmpeg git cargo \
+ && apt-get install -y --no-install-recommends build-essential ffmpeg git curl \
  && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir TTS==0.22.0
+RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal \
+ && echo 'source /root/.cargo/env' >> /etc/profile.d/cargo.sh
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir TTS==0.22.0
 
 ENV MODEL_NAME=tts_models/multilingual/multi-dataset/xtts_v2
 ENV TTS_PORT=5002
