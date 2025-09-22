@@ -10,6 +10,7 @@ services:
       - COQUI_TOS_AGREED=${COQUI_TOS_AGREED:-1}
     volumes:
       - ./cache:/root/.local/share/tts
+      - ./voices:/voices:ro
     networks:
       - fortress-phronesis-net
     restart: unless-stopped

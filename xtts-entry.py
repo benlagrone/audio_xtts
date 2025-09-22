@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
+import base64
+import os
 import sys
+from pathlib import Path
 from torch.serialization import add_safe_globals
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import XttsAudioConfig, XttsArgs
@@ -8,7 +11,7 @@ from TTS.config.shared_configs import BaseDatasetConfig
 add_safe_globals([XttsConfig, XttsAudioConfig, XttsArgs, BaseDatasetConfig])
 
 from TTS.server import server as tts_server
-from flask import request, g
+from flask import abort, g, jsonify, request
 
 _original_tts_handler = tts_server.app.view_functions.get("tts")
 _app_logger = getattr(tts_server.app, "logger", None)
@@ -19,7 +22,66 @@ def _log_debug(message, data):
         _app_logger.debug("%s %s", message, data)
 
 
-DEFAULT_SPEAKER = "female-en-5"
+def _available_voice_files():
+    if not VOICES_ROOT.exists():
+        return {}
+    voices = {}
+    for path in VOICES_ROOT.glob("*"):
+        if path.suffix.lower() not in {".wav", ".mp3", ".flac", ".ogg"}:
+            continue
+        voices[path.stem] = path
+    return voices
+
+
+def _encode_voice_file(path: Path) -> str | None:
+    try:
+        data = path.read_bytes()
+    except FileNotFoundError:
+        return None
+    return base64.b64encode(data).decode("ascii")
+
+
+def _ensure_voice_reference(payload: dict) -> None:
+    if not isinstance(payload, dict):
+        return
+    if payload.get("speaker_wav") or payload.get("speaker_wav_files"):
+        return
+
+    voices = _available_voice_files()
+    if not voices:
+        abort(
+            400,
+            description=(
+                "No speaker reference available. Provide 'speaker_wav' or place voice clips in /voices."
+            ),
+        )
+
+    requested_voice = payload.get("voice")
+    if requested_voice:
+        if requested_voice in voices:
+            voice_path = voices[requested_voice]
+        else:
+            abort(
+                404,
+                description=(
+                    f"Voice '{requested_voice}' not found. Available voices: {sorted(voices)}"
+                ),
+            )
+    elif DEFAULT_VOICE and DEFAULT_VOICE in voices:
+        voice_path = voices[DEFAULT_VOICE]
+        payload.setdefault("voice", DEFAULT_VOICE)
+    else:
+        # pick first voice alphabetically
+        voice_id, voice_path = sorted(voices.items())[0]
+        payload.setdefault("voice", voice_id)
+
+    encoded = _encode_voice_file(voice_path)
+    if encoded:
+        payload["speaker_wav"] = encoded
+
+
+VOICES_ROOT = Path(os.environ.get("VOICES_PATH", "/voices"))
+DEFAULT_VOICE = os.environ.get("DEFAULT_VOICE")
 DEFAULT_LANGUAGE = "en"
 
 
@@ -43,9 +105,14 @@ def _normalize_payload(payload):
     language = normalized.get("language") or normalized.get("language_id")
     if not language:
         normalized["language"] = DEFAULT_LANGUAGE
-    speaker = normalized.get("speaker_idx") or normalized.get("speaker") or normalized.get("speaker_id")
-    if not speaker:
-        normalized["speaker"] = DEFAULT_SPEAKER
+    voice = (
+        normalized.get("voice")
+        or normalized.get("speaker_idx")
+        or normalized.get("speaker")
+        or normalized.get("speaker_id")
+    )
+    if voice:
+        normalized["voice"] = voice
     style_wav = normalized.get("style_wav")
     if isinstance(style_wav, str) and not style_wav.strip():
         normalized.pop("style_wav", None)
@@ -57,6 +124,10 @@ def _normalized_tts_handler(*args, **kwargs):
     if payload is None and request.args:
         payload = {key: value for key, value in request.args.items()}
     normalized = _normalize_payload(payload)
+    if normalized is None:
+        g.__tts_payload__ = None
+        return _original_tts_handler(*args, **kwargs)
+    _ensure_voice_reference(normalized)
     g.__tts_payload__ = normalized
     _log_debug("[normalized payload]", normalized)
     return _original_tts_handler(*args, **kwargs)
@@ -96,9 +167,6 @@ def _patched_synth_tts(*args, **kwargs):
         else:
             args_list.append(text_override)
 
-    speaker_override = payload.get("speaker") or payload.get("speaker_idx")
-    _coalesce_argument(args_list, kwargs, "speaker_name", 1, speaker_override)
-
     language_override = payload.get("language") or payload.get("language_name")
     _coalesce_argument(args_list, kwargs, "language_name", 3, language_override)
 
@@ -111,6 +179,11 @@ synthesizer.tts = _patched_synth_tts
 @app.route("/__health", methods=["GET"])
 def health_check():
     return {"status": "ok"}
+
+
+@app.route("/api/voices", methods=["GET"])
+def list_voices():
+    return jsonify({"voices": sorted(_available_voice_files().keys())})
 
 
 if __name__ == "__main__":

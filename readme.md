@@ -60,6 +60,31 @@ Set `COQUI_TOS_AGREED=1` only if you have already reviewed and accepted the Coqu
 
 ```bash
 docker compose up -d --build
+
+### Provide voice samples
+
+XTTS-v2 is a voice-cloning model; it needs at least one reference voice clip.
+
+1. Drop `.wav` files into `voices/` (for example `voices/alex.wav`).
+2. Rebuild or restart the container so the files mount at `/voices`.
+3. Call the API with the desired voice name:
+
+```bash
+curl http://127.0.0.1:5002/api/tts \
+     -H 'Content-Type: application/json' \
+     -d '{"text":"Hello","language":"en","voice":"alex"}' \
+     --output alex.wav
+```
+
+If no `voice` is provided, the service falls back to the first clip it finds in `voices/`. Add more clips to expose additional speaker options.
+
+### Inspect available voices
+
+Request `GET /api/voices` to see which voice IDs are currently loaded:
+
+```bash
+curl http://127.0.0.1:5002/api/voices
+```
 ```
 
 Once healthy, the API lives at `http://192.168.86.23:5002/api/tts` (adjust the host/port if you expose it differently).
