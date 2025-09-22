@@ -3,6 +3,7 @@ import base64
 import os
 import sys
 from pathlib import Path
+import json
 from torch.serialization import add_safe_globals
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import XttsAudioConfig, XttsArgs
@@ -25,13 +26,43 @@ def _log_debug(message, data):
 def _builtin_voice_ids():
     manager = getattr(tts_server.synthesizer, "speaker_manager", None)
     if not manager:
+        return _speaker_ids_from_files()
+    candidates = []
+    for attr in ("speaker_names", "speaker_ids", "speakers", "speaker_id_to_idx"):
+        value = getattr(manager, attr, None)
+        if not value:
+            continue
+        if isinstance(value, dict):
+            candidates.extend(value.keys())
+        elif isinstance(value, (list, tuple, set)):
+            candidates.extend(value)
+    ids = list(dict.fromkeys(candidates))
+    if ids:
+        return ids
+    return _speaker_ids_from_files()
+
+
+def _speaker_ids_from_files():
+    model_path = os.environ.get("MODEL_PATH")
+    if not model_path:
         return []
-    names = getattr(manager, "speaker_names", None)
-    if names:
-        return list(names)
-    speakers = getattr(manager, "speakers", None)
-    if isinstance(speakers, dict):
-        return list(speakers.keys())
+    directory = Path(model_path).parent
+    for candidate in ("speakers.json", "speakers.pth", "speakers.pickle"):
+        path = directory / candidate
+        if not path.exists():
+            continue
+        try:
+            if path.suffix == ".json":
+                data = json.loads(path.read_text())
+            else:
+                # fallback for pickle/torch saved dicts
+                import torch
+
+                data = torch.load(path, map_location="cpu")
+        except Exception:  # noqa: BLE001
+            continue
+        if isinstance(data, dict):
+            return list(data.keys())
     return []
 
 

@@ -88,6 +88,9 @@ PY
 # shellcheck disable=SC2086
 eval "$EVAL_OUTPUT"
 
+export MODEL_PATH
+export CONFIG_PATH
+
 echo "Using model: ${MODEL_PATH}" >&2
 echo "Using model config: ${CONFIG_PATH}" >&2
 
