@@ -1,13 +1,12 @@
-version: "3.9"
 services:
   xtts:
     build: .
     image: local-xtts:latest
     container_name: xtts
     environment:
-      - MODEL_NAME=${MODEL_NAME:-tts_models/multilingual/multi-dataset/xtts_v2}
       - TTS_PORT=${TTS_PORT:-5002}
       - COQUI_TOS_AGREED=${COQUI_TOS_AGREED:-1}
+      - DEFAULT_VOICE=${DEFAULT_VOICE:-}
     volumes:
       - ./cache:/root/.local/share/tts
       - ./voices:/voices:ro

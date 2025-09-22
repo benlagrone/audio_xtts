@@ -1,91 +1,40 @@
 
-### 1. Scaffold a new project
-
-```bash
-mkdir -p ~/Projects/xtts-service
-cd ~/Projects/xtts-service
-```
-
-Create `Dockerfile`:
-
-```Dockerfile
-FROM python:3.11-slim
-
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg git \
- && rm -rf /var/lib/apt/lists/*
-
-RUN pip install --no-cache-dir TTS==0.22.0
-
-ENV MODEL_NAME=tts_models/multilingual/multi-dataset/xtts_v2
-ENV TTS_PORT=5002
-ENV COQUI_TOS_AGREED=1
-
-EXPOSE ${TTS_PORT}
-
-CMD ["tts-server", "--model_name", "${MODEL_NAME}", "--port", "${TTS_PORT}", "--use_cuda", "0"]
-```
-
-Create `docker-compose.yml`:
-
-```yaml
-version: "3.9"
-services:
-  xtts:
-    build: .
-    image: local-xtts:latest
-    container_name: xtts
-    environment:
-      - MODEL_NAME=${MODEL_NAME:-tts_models/multilingual/multi-dataset/xtts_v2}
-      - TTS_PORT=${TTS_PORT:-5002}
-      - COQUI_TOS_AGREED=${COQUI_TOS_AGREED:-1}
-    volumes:
-      - ./cache:/root/.local/share/tts
-    networks:
-      - fortress-phronesis-net
-    restart: unless-stopped
-    ports:
-      - "${TTS_BIND_IP:-0.0.0.0}:${TTS_PORT:-5002}:${TTS_PORT:-5002}"
-
-networks:
-  fortress-phronesis-net:
-    external: true
-```
-
-First boot downloads the model into `./cache`, so keep that directory around for subsequent runs.
-
-Set `COQUI_TOS_AGREED=1` only if you have already reviewed and accepted the Coqui XTTS licensing terms referenced in the runtime prompt.  The environment variable simply pre-seeds the agreement file that the downloader looks for so the container can bootstrap non-interactively.
-
-### 2. Launch xTTS
+### Run the service
 
 ```bash
 docker compose up -d --build
-
-### Provide voice samples
-
-XTTS-v2 is a voice-cloning model; it needs at least one reference voice clip.
-
-1. Drop `.wav` files into `voices/` (for example `voices/alex.wav`).
-2. Rebuild or restart the container so the files mount at `/voices`.
-3. Call the API with the desired voice name:
-
-```bash
-curl http://127.0.0.1:5002/api/tts \
-     -H 'Content-Type: application/json' \
-     -d '{"text":"Hello","language":"en","voice":"alex"}' \
-     --output alex.wav
 ```
 
-If no `voice` is provided, the service falls back to the first clip it finds in `voices/`. Add more clips to expose additional speaker options.
+The container boots the multi-speaker Coqui model `tts_models/en/vctk/vits` by default, so you can start synthesising immediately without supplying your own reference clip.
 
-### Inspect available voices
-
-Request `GET /api/voices` to see which voice IDs are currently loaded:
+### Discover voices
 
 ```bash
 curl http://127.0.0.1:5002/api/voices
 ```
+
+Response fields:
+
+- `builtin` – speakers embedded in the model (e.g. `p225`, `p226`, …)
+- `cloned` – custom voices harvested from `voices/`
+- `voices` – union of the two sets
+
+### Synthesize speech
+
+Pick one of the voice IDs and issue:
+
+```bash
+curl http://127.0.0.1:5002/api/tts \
+     -H 'Content-Type: application/json' \
+     -d '{"text":"Hello there","language":"en","voice":"p225"}' \
+     --output hello.wav
 ```
+
+If you omit `voice`, the service uses the first available builtin speaker or, when none exist, the first custom clip in `voices/`.
+
+### Optional: add custom voices
+
+Drop `.wav`, `.mp3`, `.flac`, or `.ogg` files into the `voices/` directory and redeploy. Each filename (without extension) becomes selectable via the `voice` field in `/api/tts`.
 
 Once healthy, the API lives at `http://192.168.86.23:5002/api/tts` (adjust the host/port if you expose it differently).
 

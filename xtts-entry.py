@@ -22,6 +22,19 @@ def _log_debug(message, data):
         _app_logger.debug("%s %s", message, data)
 
 
+def _builtin_voice_ids():
+    manager = getattr(tts_server.synthesizer, "speaker_manager", None)
+    if not manager:
+        return []
+    names = getattr(manager, "speaker_names", None)
+    if names:
+        return list(names)
+    speakers = getattr(manager, "speakers", None)
+    if isinstance(speakers, dict):
+        return list(speakers.keys())
+    return []
+
+
 def _available_voice_files():
     if not VOICES_ROOT.exists():
         return {}
@@ -47,37 +60,50 @@ def _ensure_voice_reference(payload: dict) -> None:
     if payload.get("speaker_wav") or payload.get("speaker_wav_files"):
         return
 
-    voices = _available_voice_files()
-    if not voices:
-        abort(
-            400,
-            description=(
-                "No speaker reference available. Provide 'speaker_wav' or place voice clips in /voices."
-            ),
-        )
+    builtin = sorted(_builtin_voice_ids())
+    file_voices = _available_voice_files()
 
-    requested_voice = payload.get("voice")
-    if requested_voice:
-        if requested_voice in voices:
-            voice_path = voices[requested_voice]
-        else:
-            abort(
-                404,
-                description=(
-                    f"Voice '{requested_voice}' not found. Available voices: {sorted(voices)}"
-                ),
-            )
-    elif DEFAULT_VOICE and DEFAULT_VOICE in voices:
-        voice_path = voices[DEFAULT_VOICE]
-        payload.setdefault("voice", DEFAULT_VOICE)
-    else:
-        # pick first voice alphabetically
-        voice_id, voice_path = sorted(voices.items())[0]
-        payload.setdefault("voice", voice_id)
+    requested = (
+        payload.get("voice")
+        or payload.get("speaker_id")
+        or payload.get("speaker")
+        or payload.get("speaker_idx")
+    )
 
-    encoded = _encode_voice_file(voice_path)
-    if encoded:
-        payload["speaker_wav"] = encoded
+    if requested:
+        if requested in builtin:
+            payload["speaker_id"] = requested
+            payload["voice"] = requested
+            return
+        if requested in file_voices:
+            encoded = _encode_voice_file(file_voices[requested])
+            if encoded:
+                payload["speaker_wav"] = encoded
+                payload["voice"] = requested
+            return
+        available = builtin + sorted(file_voices.keys())
+        abort(404, description=f"Voice '{requested}' not found. Available voices: {available}")
+
+    if builtin:
+        default_voice = DEFAULT_VOICE if DEFAULT_VOICE in builtin else builtin[0]
+        payload["speaker_id"] = default_voice
+        payload["voice"] = default_voice
+        return
+
+    if file_voices:
+        voice_id, voice_path = sorted(file_voices.items())[0]
+        encoded = _encode_voice_file(voice_path)
+        if encoded:
+            payload["speaker_wav"] = encoded
+            payload["voice"] = voice_id
+        return
+
+    abort(
+        400,
+        description=(
+            "No speaker reference available. Provide 'speaker_wav' or install a model with built-in voices."
+        ),
+    )
 
 
 VOICES_ROOT = Path(os.environ.get("VOICES_PATH", "/voices"))
@@ -167,6 +193,14 @@ def _patched_synth_tts(*args, **kwargs):
         else:
             args_list.append(text_override)
 
+    speaker_override = (
+        payload.get("speaker_id")
+        or payload.get("voice")
+        or payload.get("speaker")
+        or payload.get("speaker_idx")
+    )
+    _coalesce_argument(args_list, kwargs, "speaker_name", 1, speaker_override)
+
     language_override = payload.get("language") or payload.get("language_name")
     _coalesce_argument(args_list, kwargs, "language_name", 3, language_override)
 
@@ -183,7 +217,15 @@ def health_check():
 
 @app.route("/api/voices", methods=["GET"])
 def list_voices():
-    return jsonify({"voices": sorted(_available_voice_files().keys())})
+    builtin = sorted(_builtin_voice_ids())
+    file_based = sorted(_available_voice_files().keys())
+    return jsonify(
+        {
+            "builtin": builtin,
+            "cloned": file_based,
+            "voices": sorted({*builtin, *file_based}),
+        }
+    )
 
 
 if __name__ == "__main__":
