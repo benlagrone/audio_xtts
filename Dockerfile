@@ -3,7 +3,7 @@ FROM python:3.11-slim
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends build-essential ffmpeg git curl \
+ && apt-get install -y --no-install-recommends build-essential ffmpeg git curl espeak-ng \
  && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal \
