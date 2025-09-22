@@ -6,6 +6,8 @@ MODEL_NAME="${MODEL_NAME:-$DEFAULT_MODEL}"
 TTS_PORT="${TTS_PORT:-5002}"
 USE_CUDA="${USE_CUDA:-0}"
 
+export MODEL_NAME
+
 EVAL_OUTPUT=$(python - <<'PY'
 import os
 import sys
