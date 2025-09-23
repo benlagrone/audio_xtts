@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import base64
+import json
 import os
 import sys
 from pathlib import Path
-import json
 from torch.serialization import add_safe_globals
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import XttsAudioConfig, XttsArgs
@@ -25,45 +25,79 @@ def _log_debug(message, data):
 
 def _builtin_voice_ids():
     manager = getattr(tts_server.synthesizer, "speaker_manager", None)
-    if not manager:
-        return _speaker_ids_from_files()
-    candidates = []
-    for attr in ("speaker_names", "speaker_ids", "speakers", "speaker_id_to_idx"):
-        value = getattr(manager, attr, None)
-        if not value:
-            continue
-        if isinstance(value, dict):
-            candidates.extend(value.keys())
-        elif isinstance(value, (list, tuple, set)):
-            candidates.extend(value)
-    ids = list(dict.fromkeys(candidates))
-    if ids:
-        return ids
+    candidates: list[str] = []
+    if manager:
+        for attr in ("speaker_names", "speaker_ids", "speakers", "speaker_id_to_idx"):
+            value = getattr(manager, attr, None)
+            if not value:
+                continue
+            if callable(value):
+                try:
+                    value = value()
+                except TypeError:
+                    continue
+            if isinstance(value, dict):
+                candidates.extend(map(str, value.keys()))
+            elif isinstance(value, (list, tuple, set)):
+                candidates.extend(map(str, value))
+    if candidates:
+        return list(dict.fromkeys(candidates))
+
     return _speaker_ids_from_files()
 
 
 def _speaker_ids_from_files():
-    model_path = os.environ.get("MODEL_PATH")
-    if not model_path:
-        return []
-    directory = Path(model_path).parent
-    for candidate in ("speakers.json", "speakers.pth", "speakers.pickle"):
-        path = directory / candidate
-        if not path.exists():
-            continue
-        try:
-            if path.suffix == ".json":
-                data = json.loads(path.read_text())
-            else:
-                # fallback for pickle/torch saved dicts
-                import torch
+    directories = []
 
-                data = torch.load(path, map_location="cpu")
-        except Exception:  # noqa: BLE001
+    model_path = os.environ.get("MODEL_PATH")
+    if model_path:
+        directories.append(Path(model_path).parent)
+
+    config_path = os.environ.get("CONFIG_PATH")
+    if config_path:
+        directories.append(Path(config_path).parent)
+
+    candidates: list[str] = []
+    seen: set[str] = set()
+    filename_hints = {
+        "speakers.json",
+        "speaker_ids.json",
+        "speaker_mapping.json",
+        "speakers.pth",
+        "speaker_ids.pth",
+        "speakers.pickle",
+    }
+
+    for directory in directories:
+        if not directory.exists():
             continue
-        if isinstance(data, dict):
-            return list(data.keys())
-    return []
+        paths = list(directory.glob("*.json")) + list(directory.glob("*.pth")) + list(directory.glob("*.pickle"))
+        for path in paths:
+            if filename_hints and path.name not in filename_hints and path.suffix not in {".json", ".pth", ".pickle"}:
+                continue
+            if str(path) in seen:
+                continue
+            seen.add(str(path))
+            try:
+                if path.suffix == ".json":
+                    data = json.loads(path.read_text())
+                else:
+                    import torch
+
+                    data = torch.load(path, map_location="cpu")
+            except Exception:  # noqa: BLE001
+                continue
+
+            if isinstance(data, dict):
+                # look for dict[str, int] or nested structure
+                if all(isinstance(k, str) for k in data.keys()):
+                    candidates.extend(map(str, data.keys()))
+                elif "speakers" in data and isinstance(data["speakers"], dict):
+                    candidates.extend(map(str, data["speakers"].keys()))
+            elif isinstance(data, list):
+                candidates.extend(map(str, data))
+
+    return list(dict.fromkeys(candidates))
 
 
 def _available_voice_files():
