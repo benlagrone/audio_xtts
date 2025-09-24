@@ -9,6 +9,7 @@ services:
       - DEFAULT_VOICE=${DEFAULT_VOICE:-}
     volumes:
       - ${HOST_VOICE_DIR:-${HOME}/Voice}/models:/root/.local/share/tts
+      - ${HOST_VOICE_DIR:-${HOME}/Voice}:/host_voice
       - ./voices:/voices:ro
     networks:
       - fortress-phronesis-net

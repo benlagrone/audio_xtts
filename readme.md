@@ -5,7 +5,7 @@
 docker compose up -d --build
 ```
 
-The container boots the multi-speaker Coqui model `tts_models/en/vctk/vits` by default (Coqui TTS 0.22.0), so you can start synthesising immediately without supplying your own reference clip. Model downloads are cached under `${HOST_VOICE_DIR:-$HOME/Voice}/models`, so ensure that folder exists and is writable before composing the stack (e.g. `mkdir -p ~/Voice/models`).
+The container boots the multi-speaker Coqui model `tts_models/en/vctk/vits` by default (Coqui TTS 0.22.0), so you can start synthesising immediately without supplying your own reference clip. Model downloads are cached under `${HOST_VOICE_DIR:-$HOME/Voice}/models`, and the full `${HOST_VOICE_DIR:-$HOME/Voice}` tree is mounted at `/host_voice` for saving generated audio. Ensure those folders exist and are writable before composing the stack (e.g. `mkdir -p ~/Voice/models`).
 
 ### Discover voices
 
