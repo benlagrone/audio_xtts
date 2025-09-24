@@ -3,7 +3,7 @@ FROM python:3.11-slim
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends build-essential ffmpeg git curl espeak-ng \
+ && apt-get install -y --no-install-recommends build-essential ffmpeg git curl espeak-ng libsndfile1 \
  && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal \
@@ -12,7 +12,7 @@ RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal \
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir TTS==0.22.0
+ && pip install --no-cache-dir TTS==0.23.1
 
 ENV TTS_PORT=5002
 ENV COQUI_TOS_AGREED=1
